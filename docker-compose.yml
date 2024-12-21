@@ -1,0 +1,208 @@
+networks:
+  backend:
+    driver: ${NETWORKS_DRIVER}
+
+volumes:
+  mysql:
+    driver: ${VOLUMES_DRIVER}
+  redis:
+    driver: ${VOLUMES_DRIVER}
+
+# 定義 service 的區塊，一個 service 設定可以用來啟動多個 container
+services:
+  # 容器名 php-fpm-80
+  php-fpm-80:
+    build:
+      # 指定 build 時的資料夾，./代表當前路徑
+      context: ./php-fpm-80
+    volumes:
+      # 本機路徑:容器路徑
+      - ./php-fpm-80/php8.0.ini:/usr/local/etc/php/php.ini
+      - ./php-fpm-80/opcache.ini:/usr/local/etc/php/conf.d/opcache.ini
+      - ${APP_CODE_PATH_HOST}:${APP_CODE_PATH_CONTAINER}${APP_CODE_CONTAINER_FLAG}
+    networks:
+      - backend
+
+  # 容器名 php-fpm-74
+  php-fpm-74:
+    build:
+      # 指定 build 時的資料夾，./代表當前路徑
+      context: ./php-fpm-74
+    volumes:
+      # 本機路徑:容器路徑
+      - ./php-fpm-74/php7.4.ini:/usr/local/etc/php/php.ini
+      - ./php-fpm-74/opcache.ini:/usr/local/etc/php/conf.d/opcache.ini
+      - ${APP_CODE_PATH_HOST}:${APP_CODE_PATH_CONTAINER}${APP_CODE_CONTAINER_FLAG}
+    networks:
+      - backend
+
+  # 容器名 php-fpm-73
+  php-fpm-73:
+    build:
+      # 指定 build 時的資料夾，./代表當前路徑
+      context: ./php-fpm-73
+    volumes:
+      # 本機路徑:容器路徑
+      - ./php-fpm-73/php7.3.ini:/usr/local/etc/php/php.ini
+      - ./php-fpm-73/opcache.ini:/usr/local/etc/php/conf.d/opcache.ini
+      - ${APP_CODE_PATH_HOST}:${APP_CODE_PATH_CONTAINER}${APP_CODE_CONTAINER_FLAG}
+    ports:
+      # 本機埠號:容器埠號
+      - "${TG_KEFU_CORE_HYPERF_PORT}:9997"
+      - "${TG_KEFU_CORE_INTERNAL_PORT}:9998"
+      - "${TG_KEFU_CORE_APP_PORT}:9999"
+    networks:
+      - backend
+
+  # 容器名 golang
+  golang:
+    build:
+      # 指定 build 時的資料夾，./代表當前路徑
+      context: ./golang
+    volumes:
+      # 本機路徑:容器路徑
+      - ${GO_CODE_PATH_HOST}:${APP_CODE_PATH_CONTAINER}${APP_CODE_CONTAINER_FLAG}
+    ports:
+      # 本機埠號:容器埠號
+      - "${ETHEREUM_SERVER}:10101"
+    networks:
+      - backend
+
+  # 容器名 nginx
+  nginx:
+    build:
+      # 指定 build 時的資料夾，./代表當前路徑
+      context: ./nginx
+    volumes:
+      # 本機路徑:容器路徑
+      - ${APP_CODE_PATH_HOST}:${APP_CODE_PATH_CONTAINER}${APP_CODE_CONTAINER_FLAG}
+      - ./nginx/sites/:/etc/nginx/sites-available
+      - ./nginx/ssl/:/etc/nginx/ssl
+    ports:
+      # 本機埠號:容器埠號
+      - "${NGINX_HOST_TG_USER_PORT}:8880"
+      - "${NGINX_HOST_TG_ADMIN_PORT}:8888"
+      - "${NGINX_HOST_TG_KEFU_PORT}:10000"
+      - "${NGINX_HOST_BACKEND_PORT}:10001"
+      - "${NGINX_HOST_FRONTEND_PORT}:10002"
+      - "${NGINX_HOST_DOWNLOAD_PORT}:10003"
+    depends_on:
+      - php-fpm-74
+      - php-fpm-73
+      - php-fpm-80
+    networks:
+      backend:
+        aliases:
+          - www.guo.com
+          - www.tguser.com
+          - www.tgadmin.com
+          - kefu.local.com
+
+  # 容器名 mysql
+  mysql:
+    build:
+      # 指定 build 時的資料夾，./代表當前路徑
+      context: ./mysql
+    environment:
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+    volumes:
+      # 本機路徑:容器路徑
+      - ./mysql/my.cnf:/etc/mysql/conf.d/my.cnf
+    ports:
+      # 本機埠號:容器埠號
+      - "${MYSQL_PORT}:3306"
+    networks:
+      - backend
+
+  # 容器名 redis
+  redis:
+    build:
+      # 指定 build 時的資料夾，./代表當前路徑
+      context: ./redis
+    networks:
+      - backend
+
+  # 容器名 rabbitmq
+  rabbitmq:
+    build: ./rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
+    networks:
+      - backend
+
+  # 容器名 logstash
+  logstash:
+    build:
+      # 指定 build 時的資料夾，./代表當前路徑
+      context: ./logstash
+    volumes:
+      # 本機路徑:容器路徑
+      - ./logstash/logstash.yml:/usr/share/logstash/config/logstash.yml
+      - ./logstash/logstash-config.conf:/usr/share/logstash/config/logstash-config.conf
+    ports:
+      # 本機埠號:容器埠號
+      - "${LOGSTASH_PORT}:5001"
+    environment:
+      LS_JAVA_OPTS: '-Xmx1g -Xms1g'
+    env_file:
+      - .env
+    networks:
+      - backend
+
+  # 容器名 elasticsearch
+  elasticsearch:
+    build:
+      # 指定 build 時的資料夾，./代表當前路徑
+      context: ./elasticsearch
+    environment:
+      - cluster.name=laradock-cluster
+      - node.name=laradock-node
+      - bootstrap.memory_lock=true
+      - xpack.security.enabled=false
+      - xpack.security.transport.ssl.enabled=false
+      - indices.id_field_data.enabled=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - cluster.initial_master_nodes=laradock-node
+    ports:
+      # 本機埠號:容器埠號
+      - "${ELASTICSEARCH_PORT}:9200"
+    networks:
+      - backend
+
+  # 容器名 kibana
+  kibana:
+    build:
+      # 指定 build 時的資料夾，./代表當前路徑
+      context: ./kibana
+    volumes:
+      # 本機路徑:容器路徑
+      - ./kibana/kibana.yml:/usr/share/kibana/config/kibana.yml
+    ports:
+      # 本機埠號:容器埠號
+      - "${KIBANA_PORT}:5601"
+    networks:
+      - backend
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
