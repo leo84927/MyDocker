@@ -65,6 +65,9 @@ RUN pecl install -o -f redis; \
     rm -rf /tmp/pear; \
     docker-php-ext-enable redis;
 
+# sockets
+RUN docker-php-ext-install sockets;
+
 # swoole
 RUN pecl install swoole-4.8.6; \
     docker-php-ext-enable swoole;
